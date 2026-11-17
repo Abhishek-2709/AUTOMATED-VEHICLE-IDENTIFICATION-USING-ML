@@ -52,6 +52,19 @@ pip install -r requirements.txt
 
 Download the required model files and configure the COCO class names before running the application.
 
+
+## Screenshots
+
+### Vehicle Detection
+![Vehicle Detection](screenshots/vehicle-detection.png)
+
+### Multiple Vehicle Detection
+![Multiple Vehicle Detection](screenshots/multiple-vehicles.png)
+
+### Vehicle Counting
+![Vehicle Counting](screenshots/vehicle-counting.png)
+
+
 ## Project Outcome
 
 The project demonstrates how pre-trained object detection models and computer vision techniques can be combined to identify different vehicle categories from visual input. It provided practical exposure to object detection, image processing and the application of machine learning in intelligent transportation systems.
