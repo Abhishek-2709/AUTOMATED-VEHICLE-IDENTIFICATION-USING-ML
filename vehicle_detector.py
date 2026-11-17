@@ -1,0 +1,245 @@
+import cv2
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+import time
+import os
+from datetime import datetime
+
+class VehicleDetector:
+    def __init__(self):
+        self.vehicle_classes = ['car', 'truck', 'bus', 'motorcycle']
+        self.vehicle_counts = {class_name: 0 for class_name in self.vehicle_classes}
+        self.total_vehicles = 0
+        self.tracked_vehicles = {}  # Dictionary to store tracked vehicles
+        self.tracking_threshold = 30  # Pixels threshold for considering same vehicle
+        self.vehicle_timeout = 20  # Frames to keep tracking a vehicle
+        self._initialize_model()
+        
+    def _initialize_model(self):
+        """
+        Initialize YOLOv4-tiny model
+        """
+        try:
+            print("Initializing YOLO model...")
+            
+            # Get the current directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Paths for YOLO config and weights
+            config_path = os.path.join(current_dir, 'yolov4-tiny.cfg')
+            weights_path = os.path.join(current_dir, 'yolov4-tiny.weights')
+            
+            # Load YOLO network
+            self.net = cv2.dnn.readNet(weights_path, config_path)
+            
+            # Load classes
+            with open(os.path.join(current_dir, 'coco.names'), 'r') as f:
+                self.classes = [line.strip() for line in f.readlines()]
+            
+            # Get output layers
+            layer_names = self.net.getLayerNames()
+            self.output_layers = [layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()]
+            
+            print("Model initialized successfully!")
+            
+        except Exception as e:
+            print(f"Error initializing model: {str(e)}")
+            raise
+
+    def save_count_to_file(self):
+        """Save vehicle counts to a file"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open('vehicle_counts.txt', 'a') as f:
+            f.write(f"\n=== Count at {timestamp} ===\n")
+            for vehicle_type, count in self.vehicle_counts.items():
+                f.write(f"{vehicle_type}: {count}\n")
+            f.write(f"Total Vehicles: {self.total_vehicles}\n")
+            f.write("========================\n")
+
+    def _calculate_overlap(self, box1, box2):
+        """Calculate IoU (Intersection over Union) between two boxes"""
+        x1, y1, w1, h1 = box1
+        x2, y2, w2, h2 = box2
+        
+        # Calculate intersection
+        xi1 = max(x1, x2)
+        yi1 = max(y1, y2)
+        xi2 = min(x1 + w1, x2 + w2)
+        yi2 = min(y1 + h1, y2 + h2)
+        
+        if xi2 <= xi1 or yi2 <= yi1:
+            return 0.0
+        
+        intersection = (xi2 - xi1) * (yi2 - yi1)
+        box1_area = w1 * h1
+        box2_area = w2 * h2
+        union = box1_area + box2_area - intersection
+        
+        return intersection / union if union > 0 else 0.0
+
+    def _is_new_vehicle(self, box, vehicle_type):
+        """Check if detected vehicle is new or already tracked"""
+        current_time = time.time()
+        
+        # Remove old tracked vehicles
+        self.tracked_vehicles = {
+            k: v for k, v in self.tracked_vehicles.items() 
+            if current_time - v['last_seen'] < self.vehicle_timeout
+        }
+        
+        # Check overlap with existing tracked vehicles
+        for vehicle_id, tracked in self.tracked_vehicles.items():
+            if tracked['type'] == vehicle_type:
+                overlap = self._calculate_overlap(box, tracked['box'])
+                if overlap > 0.3:  # If 50% overlap, consider it the same vehicle
+                    # Update tracking info
+                    self.tracked_vehicles[vehicle_id].update({
+                        'box': box,
+                        'last_seen': current_time
+                    })
+                    return False
+        
+        # If no match found, add as new vehicle
+        new_id = len(self.tracked_vehicles)
+        self.tracked_vehicles[new_id] = {
+            'box': box,
+            'type': vehicle_type,
+            'last_seen': current_time
+        }
+        return True
+
+    def detect_from_webcam(self):
+        """
+        Detect vehicles in real-time using webcam
+        """
+        try:
+            # Try different camera indices
+            for camera_index in [0, 1, 2]:
+                print(f"Trying camera index {camera_index}...")
+                cap = cv2.VideoCapture(camera_index)
+                
+                if cap.isOpened():
+                    print(f"Successfully opened camera {camera_index}")
+                    break
+                else:
+                    cap.release()
+                    if camera_index == 2:  # If we've tried all indices
+                        print("Error: Could not open any webcam")
+                        return
+                    continue
+            
+            print("Starting webcam detection... Press 'q' to quit")
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    print("Error: Can't receive frame from webcam")
+                    break
+                
+                try:
+                    # Reset frame counts
+                    frame_counts = {class_name: 0 for class_name in self.vehicle_classes}
+                    
+                    # Prepare image for YOLO
+                    height, width, _ = frame.shape
+                    blob = cv2.dnn.blobFromImage(frame, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
+                    
+                    # Detect objects
+                    self.net.setInput(blob)
+                    outs = self.net.forward(self.output_layers)
+                    
+                    # Information to display on screen
+                    class_ids = []
+                    confidences = []
+                    boxes = []
+                    
+                    # Showing information on the screen
+                    for out in outs:
+                        for detection in out:
+                            scores = detection[5:]
+                            class_id = np.argmax(scores)
+                            confidence = scores[class_id]
+                            
+                            if confidence > 0.5 and self.classes[class_id] in self.vehicle_classes:
+                                # Object detected
+                                center_x = int(detection[0] * width)
+                                center_y = int(detection[1] * height)
+                                w = int(detection[2] * width)
+                                h = int(detection[3] * height)
+                                
+                                # Rectangle coordinates
+                                x = int(center_x - w / 2)
+                                y = int(center_y - h / 2)
+                                
+                                boxes.append([x, y, w, h])
+                                confidences.append(float(confidence))
+                                class_ids.append(class_id)
+                    
+                    # Apply non-max suppression
+                    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+                    
+                    # Draw boxes and count vehicles by type
+                    for i in range(len(boxes)):
+                        if i in indexes:
+                            x, y, w, h = boxes[i]
+                            label = self.classes[class_ids[i]]
+                            confidence = confidences[i]
+                            
+                            if label in self.vehicle_classes:
+                                # Check if this is a new vehicle
+                                if self._is_new_vehicle([x, y, w, h], label):
+                                    frame_counts[label] += 1
+                                    self.vehicle_counts[label] += 1
+                                    self.total_vehicles += 1
+                                
+                            # Draw bounding box
+                            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                            cv2.putText(frame, f'{label} ({confidence:.2f})', 
+                                      (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 
+                                      0.5, (0, 255, 0), 2)
+                    
+                    # Display counts on frame
+                    y_position = 50
+                    for vehicle_type, count in self.vehicle_counts.items():
+                        cv2.putText(frame, f'{vehicle_type}: {count}', 
+                                  (20, y_position), cv2.FONT_HERSHEY_SIMPLEX, 
+                                  0.6, (0, 255, 0), 2)
+                        y_position += 30
+                    
+                    # Display total count
+                    cv2.putText(frame, f'Total Vehicles: {self.total_vehicles}', 
+                              (20, y_position), cv2.FONT_HERSHEY_SIMPLEX, 
+                              0.8, (0, 0, 255), 2)
+                    
+                    
+                    
+                except Exception as e:
+                    print(f"Error processing frame: {str(e)}")
+                    continue
+                
+                # Display the frame
+                cv2.imshow('Vehicle Detection - Live', frame)
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+        except Exception as e:
+            print(f"Error in webcam detection: {str(e)}")
+
+        finally:
+            self.save_count_to_file()
+            cap.release()
+            cv2.destroyAllWindows()
+            print("\nFinal Vehicle Counts:")
+            for vehicle_type, count in self.vehicle_counts.items():
+                print(f"{vehicle_type}: {count}")
+            print(f"Total Vehicles Detected: {self.total_vehicles}")
+
+
+if __name__ == "__main__":
+    try:
+        detector = VehicleDetector()
+        detector.detect_from_webcam()
+    except Exception as e:
+        print(f"Application error: {str(e)}")
