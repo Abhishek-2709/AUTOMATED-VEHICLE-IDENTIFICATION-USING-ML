@@ -72,15 +72,18 @@ Make sure your webcam is connected and camera access is enabled.
 ## Screenshots
 
 ### Vehicle Detection
-![Vehicle Detection](<img width="599" height="454" alt="vehicle detection" src="https://github.com/user-attachments/assets/5240d50f-7f0e-4a9a-a0e2-0bc08d31b4f3" />
+[<img width="599" height="454" alt="vehicle detection" src="https://github.com/user-attachments/assets/0426ef9f-f494-45d6-9731-23e1361e8424" />
+](<img width="599" height="454" alt="vehicle detection" src="https://github.com/user-attachments/assets/5240d50f-7f0e-4a9a-a0e2-0bc08d31b4f3" />
 )
 
 ### Multiple Vehicle Detection
-![Multiple Vehicle Detection](<img width="592" height="414" alt="multiple cars" src="https://github.com/user-attachments/assets/d821753b-3acc-4047-8c59-1216e8e449ec" />
+[![Uploading multiple cars.png…]()
+](<img width="592" height="414" alt="multiple cars" src="https://github.com/user-attachments/assets/d821753b-3acc-4047-8c59-1216e8e449ec" />
 )
 
 ### Vehicle Counting
-![Vehicle Counting](<img width="590" height="358" alt="vehicles count" src="https://github.com/user-attachments/assets/d22c10e6-d97d-446a-872d-7a2fb4fef7b6" />
+![<img width="590" height="358" alt="vehicles count" src="https://github.com/user-attachments/assets/1955878b-f7d9-41a4-9ef6-5fbd5f60e8a4" />
+](<img width="590" height="358" alt="vehicles count" src="https://github.com/user-attachments/assets/d22c10e6-d97d-446a-872d-7a2fb4fef7b6" />
 )
 
 
